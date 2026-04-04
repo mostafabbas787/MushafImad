@@ -141,7 +141,7 @@ public struct MushafView: View {
     
     public init(
         page: Binding<Int>,
-        highlightedVerse: Binding<Verse?>? = nil,
+        highlightedVerse: Binding<Verse?>,
         onVerseLongPress: ((Verse) -> Void)? = nil,
         onPageTap: (() -> Void)? = nil,
         realmService: RealmService = .shared,
@@ -170,7 +170,7 @@ public struct MushafView: View {
     ) {
         self.init(
             page: page,
-            highlightedVerse: nil,
+            highlightedVerse: .constant(nil),
             onVerseLongPress: onVerseLongPress,
             onPageTap: onPageTap,
             realmService: realmService,
@@ -220,14 +220,14 @@ public struct MushafView: View {
         }
         .onChange(of: viewModel.scrollPosition) { oldPage, newPage in
             guard let newPage = newPage else { return }
-            externalPageBinding?.wrappedValue = newPage
+            if externalPageBinding?.wrappedValue != newPage {
+                externalPageBinding?.wrappedValue = newPage
+            }
             Task {
                 await viewModel.handlePageChange(from: oldPage, to: newPage)
             }
         }
-        .onChange(of: externalPageBinding?.wrappedValue) { _, newPage in
-            syncExternalPageChange(newPage)
-        }
+        .conditionalExternalBindingSync(externalPageBinding: externalPageBinding, viewModel: $viewModel)
         .task {
             await viewModel.initializePageView(initialPage: initialPage)
         }
@@ -576,10 +576,30 @@ public struct MushafView: View {
         )
     }
     
-    private func syncExternalPageChange(_ newPage: Int?) {
-        guard externalPageBinding != nil, let newPage else { return }
-        if viewModel.scrollPosition != newPage {
+}
+
+private struct ExternalPageBindingSyncModifier: ViewModifier {
+    let externalPageBinding: Binding<Int>
+    @Binding var viewModel: MushafView.ViewModel
+    
+    func body(content: Content) -> some View {
+        content.onChange(of: externalPageBinding.wrappedValue) { _, newPage in
+            guard viewModel.scrollPosition != newPage else { return }
             viewModel.scrollPosition = newPage
+        }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func conditionalExternalBindingSync(
+        externalPageBinding: Binding<Int>?,
+        viewModel: Binding<MushafView.ViewModel>
+    ) -> some View {
+        if let externalPageBinding {
+            self.modifier(ExternalPageBindingSyncModifier(externalPageBinding: externalPageBinding, viewModel: viewModel))
+        } else {
+            self
         }
     }
 }

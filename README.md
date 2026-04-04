@@ -283,7 +283,10 @@ You can now fully modularize services:
 // Realm configuration options
 let bundled = RealmService(configuration: .bundled)
 let custom = RealmService(configuration: .custom(url: customRealmURL))
-let inMemory = RealmService(configuration: .inMemory)
+let inMemory = RealmService(
+    configuration: .inMemory,
+    inMemoryIdentifier: "MushafImad.TestRealm"
+)
 
 // Optional: replace global shared
 RealmService.reconfigureShared(configuration: .custom(url: customRealmURL))
