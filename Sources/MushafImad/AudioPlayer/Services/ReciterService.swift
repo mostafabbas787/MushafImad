@@ -30,6 +30,12 @@ public final class ReciterService: ObservableObject {
     /// Use this instance to access reciter data throughout the app.
     public static let shared = ReciterService()
     
+    public enum Configuration: Sendable, Equatable {
+        case bundled
+        case reciters([ReciterInfo])
+        case manifest(url: URL)
+    }
+    
     /// Lightweight reciter descriptor surfaced to the UI layer.
     ///
     /// This struct contains all the information needed to display and play audio from a reciter.
@@ -120,8 +126,10 @@ public final class ReciterService: ObservableObject {
     @Published public private(set) var isLoading: Bool = true
     
     @AppStorage("selectedReciterId") private var savedReciterId: Int = 0
+    private let configuration: Configuration
     
-    private init() {
+    public init(configuration: Configuration = .bundled) {
+        self.configuration = configuration
         // Load synchronously on main thread to ensure it's ready
         loadAvailableRecitersSync()
     }
@@ -133,10 +141,15 @@ public final class ReciterService: ObservableObject {
     
     /// Loads reciter IDs from the reciters_manifest.json file.
     private func loadReciterIdsFromManifest() -> [Int] {
-        guard let url = Bundle.module.url(forResource: "reciters_manifest", withExtension: "json") else {
+        guard let url = Bundle.mushafResources.url(forResource: "reciters_manifest", withExtension: "json") else {
             AppLogger.shared.warn("ReciterService: reciters_manifest.json not found in bundle", category: .network)
             return []
         }
+        
+        return loadReciterIds(from: url)
+    }
+    
+    private func loadReciterIds(from url: URL) -> [Int] {
         
         do {
             let data = try Data(contentsOf: url)
@@ -151,10 +164,21 @@ public final class ReciterService: ObservableObject {
     }
     
     private func loadAvailableRecitersSync() {
+        if case let .reciters(customReciters) = configuration {
+            setReciters(customReciters)
+            return
+        }
+        
         var reciters: [ReciterInfo] = []
         
         // Load reciter IDs from JSON manifest
-        let reciterIds = loadReciterIdsFromManifest()
+        let reciterIds: [Int]
+        switch configuration {
+        case .bundled, .reciters:
+            reciterIds = loadReciterIdsFromManifest()
+        case let .manifest(url):
+            reciterIds = loadReciterIds(from: url)
+        }
         
         // If manifest loading failed, there's no fallback for IDs
         guard !reciterIds.isEmpty else {
@@ -231,6 +255,22 @@ public final class ReciterService: ObservableObject {
         
         if let selectedReciter = self.selectedReciter {
             AppLogger.shared.info("ReciterService: Audio base URL: \(selectedReciter.folderURL)", category: .network)
+        }
+        
+        self.isLoading = false
+    }
+    
+    private func setReciters(_ recitersInput: [ReciterInfo]) {
+        let reciters = recitersInput.sorted { $0.id < $1.id }
+        self.availableReciters = reciters
+        
+        if savedReciterId > 0, let saved = reciters.first(where: { $0.id == savedReciterId }) {
+            self.selectedReciter = saved
+        } else if let firstReciter = reciters.first {
+            self.selectedReciter = firstReciter
+            self.savedReciterId = firstReciter.id
+        } else {
+            self.selectedReciter = nil
         }
         
         self.isLoading = false

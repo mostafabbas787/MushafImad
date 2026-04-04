@@ -19,12 +19,28 @@ public protocol RealmServiceProtocol: Sendable {
 /// Facade around the bundled Realm database that powers Quran metadata.
 @MainActor
 public final class RealmService: RealmServiceProtocol {
-    public static let shared = RealmService()
+    public enum Configuration: Sendable, Equatable {
+        case bundled
+        case custom(url: URL)
+        case inMemory
+    }
+    
+    private static var sharedInstance = RealmService()
+    public static var shared: RealmService { sharedInstance }
+    
+    public static func reconfigureShared(configuration: Configuration) {
+        sharedInstance = RealmService(configuration: configuration)
+    }
     
     private var realm: Realm?
-    private var configuration: Realm.Configuration?
+    private var realmConfiguration: Realm.Configuration?
+    private let sourceConfiguration: Configuration
+    private let inMemoryIdentifier: String
     
-    private init() {}
+    public init(configuration: Configuration = .bundled) {
+        self.sourceConfiguration = configuration
+        self.inMemoryIdentifier = "MushafImad.inMemory.\(UUID().uuidString)"
+    }
     
     // MARK: - Initialization (Widget)
     
@@ -35,39 +51,8 @@ public final class RealmService: RealmServiceProtocol {
         if realm != nil {
             return
         }
-        
-        guard let bundledRealmURL = Bundle.mushafResources.url(forResource: "quran", withExtension: "realm") else {
-            throw NSError(domain: "RealmService", code: 1,
-                         userInfo: [NSLocalizedDescriptionKey: "Could not find quran.realm in bundle"])
-        }
-        
-        let fileManager = FileManager.default
-        // Widgets usually can't write to Application Support safely without App Groups,
-        // but we can write to the extension's local Cache or Documents directory.
-        guard let cachesURL = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first else {
-            throw NSError(domain: "RealmService", code: 2,
-                         userInfo: [NSLocalizedDescriptionKey: "Could not access Caches directory for Widget"])
-        }
-        
-        let writableRealmURL = cachesURL.appendingPathComponent("quran_widget.realm")
-        
-        // Copy if it doesn't exist
-        if !fileManager.fileExists(atPath: writableRealmURL.path) {
-            try fileManager.copyItem(at: bundledRealmURL, to: writableRealmURL)
-        }
-        
-        // Configure Realm with automatic migration (aligned with main app)
-        let config = Realm.Configuration(
-            fileURL: writableRealmURL,
-            schemaVersion: 24,
-            migrationBlock: { migration, oldSchemaVersion in
-                if oldSchemaVersion < 24 {
-                    // Perform any necessary migration
-                }
-            }
-        )
-        
-        configuration = config
+        let config = try makeRealmConfiguration(forWidget: true)
+        realmConfiguration = config
         realm = try Realm(configuration: config)
     }
     
@@ -78,51 +63,9 @@ public final class RealmService: RealmServiceProtocol {
         if realm != nil {
             return
         }
-        
-        // Get the path to the bundled Realm file
-        guard let bundledRealmURL = Bundle.mushafResources.url(forResource: "quran", withExtension: "realm") else {
-            throw NSError(domain: "RealmService", code: 1,
-                         userInfo: [NSLocalizedDescriptionKey: "Could not find quran.realm in bundle"])
-        }
-        
-        // Get the Application Support directory (writable location)
-        let fileManager = FileManager.default
-        guard let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            throw NSError(domain: "RealmService", code: 2,
-                         userInfo: [NSLocalizedDescriptionKey: "Could not access Application Support directory"])
-        }
-        
-        // Create Application Support directory if it doesn't exist
-        try fileManager.createDirectory(at: appSupportURL, withIntermediateDirectories: true)
-        
-        // Destination path for the writable Realm file
-        let writableRealmURL = appSupportURL.appendingPathComponent("quran.realm")
-        
-        // Copy the bundled Realm file to writable location if it doesn't exist (ONE TIME)
-        if !fileManager.fileExists(atPath: writableRealmURL.path) {
-            try fileManager.copyItem(at: bundledRealmURL, to: writableRealmURL)
-        }
-        
-        // Configure Realm with automatic migration (optimized)
-        var config = Realm.Configuration(
-            fileURL: writableRealmURL,
-            schemaVersion: 24,
-            migrationBlock: { migration, oldSchemaVersion in
-                // Lightweight migration - no logging to avoid performance hit
-                if oldSchemaVersion < 24 {
-                    // Perform any necessary migration
-                }
-            }
-        )
-        
-        // Disable file locking for better performance (read-only after migration)
-        config.readOnly = false
-        configuration = config
-        
-        // Initialize Realm
+        let config = try makeRealmConfiguration(forWidget: false)
+        realmConfiguration = config
         realm = try Realm(configuration: config)
-        
-        //let chapterCount = realm?.objects(Chapter.self).count ?? 0
     }
     
     /// Check if Realm is initialized
@@ -139,12 +82,12 @@ public final class RealmService: RealmServiceProtocol {
     /// Fetch all chapters off the main actor and return frozen copies for thread safety
     public func fetchAllChaptersAsync() async throws -> [Chapter] {
         try initialize()
-        guard let configuration else {
+        guard let realmConfiguration else {
             throw NSError(domain: "RealmService", code: 3,
                           userInfo: [NSLocalizedDescriptionKey: "Realm configuration unavailable"])
         }
         return try await withCheckedThrowingContinuation { continuation in
-            let config = configuration
+            let config = realmConfiguration
             DispatchQueue.global(qos: .userInitiated).async {
                 autoreleasepool {
                     do {
@@ -194,9 +137,9 @@ public final class RealmService: RealmServiceProtocol {
         } catch {
             return nil
         }
-        guard let configuration else { return nil }
+        guard let realmConfiguration else { return nil }
         return await withCheckedContinuation { continuation in
-            let config = configuration
+            let config = realmConfiguration
             DispatchQueue.global(qos: .userInitiated).async {
                 autoreleasepool {
                     do {
@@ -308,12 +251,12 @@ public final class RealmService: RealmServiceProtocol {
     /// Fetch all parts off the main actor and return frozen copies for thread safety
     public func fetchAllPartsAsync() async throws -> [Part] {
         try initialize()
-        guard let configuration else {
+        guard let realmConfiguration else {
             throw NSError(domain: "RealmService", code: 3,
                           userInfo: [NSLocalizedDescriptionKey: "Realm configuration unavailable"])
         }
         return try await withCheckedThrowingContinuation { continuation in
-            let config = configuration
+            let config = realmConfiguration
             DispatchQueue.global(qos: .userInitiated).async {
                 autoreleasepool {
                     do {
@@ -349,12 +292,12 @@ public final class RealmService: RealmServiceProtocol {
     /// Fetch all quarters off the main actor and return frozen copies for thread safety
     public func fetchAllQuartersAsync() async throws -> [Quarter] {
         try initialize()
-        guard let configuration else {
+        guard let realmConfiguration else {
             throw NSError(domain: "RealmService", code: 3,
                           userInfo: [NSLocalizedDescriptionKey: "Realm configuration unavailable"])
         }
         return try await withCheckedThrowingContinuation { continuation in
-            let config = configuration
+            let config = realmConfiguration
             DispatchQueue.global(qos: .userInitiated).async {
                 autoreleasepool {
                     do {
@@ -458,6 +401,73 @@ public final class RealmService: RealmServiceProtocol {
         }
         
         return sajdaVerses
+    }
+    
+    private func makeRealmConfiguration(forWidget: Bool) throws -> Realm.Configuration {
+        let migrationBlock: MigrationBlock = { _, oldSchemaVersion in
+            if oldSchemaVersion < 24 {
+                // Perform any necessary migration
+            }
+        }
+        
+        switch sourceConfiguration {
+        case .bundled:
+            guard let bundledRealmURL = Bundle.mushafResources.url(forResource: "quran", withExtension: "realm") else {
+                throw NSError(domain: "RealmService", code: 1,
+                              userInfo: [NSLocalizedDescriptionKey: "Could not find quran.realm in bundle"])
+            }
+            
+            let fileManager = FileManager.default
+            let targetDirectory: URL
+            if forWidget {
+                guard let cachesURL = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+                    throw NSError(domain: "RealmService", code: 2,
+                                  userInfo: [NSLocalizedDescriptionKey: "Could not access Caches directory for Widget"])
+                }
+                targetDirectory = cachesURL
+            } else {
+                guard let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+                    throw NSError(domain: "RealmService", code: 2,
+                                  userInfo: [NSLocalizedDescriptionKey: "Could not access Application Support directory"])
+                }
+                targetDirectory = appSupportURL
+            }
+            
+            try fileManager.createDirectory(at: targetDirectory, withIntermediateDirectories: true)
+            let writableRealmURL = targetDirectory.appendingPathComponent(forWidget ? "quran_widget.realm" : "quran.realm")
+            
+            if !fileManager.fileExists(atPath: writableRealmURL.path) {
+                try fileManager.copyItem(at: bundledRealmURL, to: writableRealmURL)
+            }
+            
+            var config = Realm.Configuration(
+                fileURL: writableRealmURL,
+                schemaVersion: 24,
+                migrationBlock: migrationBlock
+            )
+            config.readOnly = false
+            return config
+            
+        case let .custom(url):
+            let folderURL = url.deletingLastPathComponent()
+            if !folderURL.path.isEmpty {
+                try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+            }
+            var config = Realm.Configuration(
+                fileURL: url,
+                schemaVersion: 24,
+                migrationBlock: migrationBlock
+            )
+            config.readOnly = false
+            return config
+            
+        case .inMemory:
+            return Realm.Configuration(
+                inMemoryIdentifier: inMemoryIdentifier,
+                schemaVersion: 24,
+                migrationBlock: migrationBlock
+            )
+        }
     }
 }
 

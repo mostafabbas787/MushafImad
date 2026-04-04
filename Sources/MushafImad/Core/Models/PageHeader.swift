@@ -12,4 +12,8 @@ public final class PageHeader: Object {
     @Persisted public var part: Part?
     @Persisted public var quarter: Quarter?
     @Persisted public var chapters = List<Chapter>()
+    
+    public required override init() {
+        super.init()
+    }
 }

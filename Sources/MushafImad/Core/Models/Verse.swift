@@ -42,6 +42,10 @@ public final class Verse: Object, Identifiable {
     public var chapterNumber: Int {
         return chapter?.number ?? 0
     }
+    
+    public required override init() {
+        super.init()
+    }
 }
 
 extension Verse {

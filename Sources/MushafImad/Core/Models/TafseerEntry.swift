@@ -35,7 +35,7 @@ public final class TafseerEntry: Object, Identifiable {
 
     // MARK: - Convenience init
 
-    convenience init(
+    public convenience init(
         surahId: Int,
         ayahId: Int,
         globalAyahNumber: Int,

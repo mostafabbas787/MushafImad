@@ -33,6 +33,10 @@ public final class Chapter: Object, Identifiable {
         return ["number", "searchableText"]
     }
     
+    public required override init() {
+        super.init()
+    }
+    
     // Computed properties for compatibility with existing code
     public var startPage: Int {
         // Get first verse's page number

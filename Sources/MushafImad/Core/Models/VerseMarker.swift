@@ -13,4 +13,8 @@ public final class VerseMarker: Object {
     @Persisted public var line: Int = 0
     @Persisted public var centerX: Float = 0
     @Persisted public var centerY: Float = 0
+    
+    public required override init() {
+        super.init()
+    }
 }

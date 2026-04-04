@@ -158,18 +158,25 @@ If your app already has a `ModelContainer`, simply add `ReadingSession.self` to 
 3. **Present the Mushaf reader**
 
    ```swift
-   struct MushafScene: View {
-       var body: some View {
-           MushafView(initialPage: 1)
-               .task { await MushafView.ViewModel().loadData() }
-       }
-   }
+    struct MushafScene: View {
+        @State private var page = 1
+        private let realmService = RealmService(configuration: .bundled)
+        private let reciterService = ReciterService(configuration: .bundled)
+
+        var body: some View {
+            MushafView(
+                page: $page,
+                realmService: realmService,
+                reciterService: reciterService
+            )
+        }
+    }
    ```
 
 4. **Optional configuration**
    - Use `AppStorage` keys (`reading_theme`, `scrolling_mode`, `selectedReciterId`) to persist user preferences.
    - Add `ToastOverlayView()` at the root of your layout so toasts can appear above the UI.
-   - Customize colors via assets or override `ReadingTheme` cases if you add more themes.
+    - Customize colors/images/fonts via `MushafAssets.configuration`.
    - React to user interaction with `onVerseLongPress` and `onPageTap` to drive surrounding UI, such as showing toolbars or presenting sheets.
 
 ```swift
@@ -233,7 +240,15 @@ struct MyApp: App {
         // Use colors and images from the host app's asset catalog when available.
         MushafAssets.configuration = MushafAssetConfiguration(
             colorBundle: .main,
-            imageBundle: .main
+            imageBundle: .main,
+            fontNameProvider: { style in
+                switch style {
+                case .chapterNames:
+                    return "YourChapterFont-Regular"
+                default:
+                    return nil
+                }
+            }
         )
     }
     // ...
@@ -259,6 +274,27 @@ MushafAssets.configuration = MushafAssetConfiguration(
 ```
 
 Call `MushafAssets.reset()` to restore the defaults (useful inside tests or sample views).
+
+### Custom Data Sources
+
+You can now fully modularize services:
+
+```swift
+// Realm configuration options
+let bundled = RealmService(configuration: .bundled)
+let custom = RealmService(configuration: .custom(url: customRealmURL))
+let inMemory = RealmService(configuration: .inMemory)
+
+// Optional: replace global shared
+RealmService.reconfigureShared(configuration: .custom(url: customRealmURL))
+
+// Reciter configuration options
+let recitersFromBundle = ReciterService(configuration: .bundled)
+let recitersFromManifest = ReciterService(configuration: .manifest(url: manifestURL))
+let customReciters = ReciterService(configuration: .reciters([
+    .init(id: 1, nameArabic: "...", nameEnglish: "...", rewaya: "...", folderURL: "...", timingSource: .none)
+]))
+```
 
 ## Example Project
 
