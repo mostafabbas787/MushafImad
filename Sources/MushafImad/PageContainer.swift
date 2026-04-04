@@ -14,24 +14,31 @@ public struct PageContainer: View {
     @Binding public var selectedVerse: Verse?
     public let onVerseLongPress: (Verse) -> Void
     public let onTap: () -> Void
+    public let realmService: RealmService
 
     @State private var pageData: Page?
 
     // Static cache to persist page data across view recreations
-    private static var pageCache: [Int: Page] = [:]
+    private struct CacheKey: Hashable {
+        let serviceID: ObjectIdentifier
+        let pageNumber: Int
+    }
+    private static var pageCache: [CacheKey: Page] = [:]
 
     public init(
         pageNumber: Int,
         highlightedVerse: Verse?,
         selectedVerse: Binding<Verse?>,
         onVerseLongPress: @escaping (Verse) -> Void,
-        onTap: @escaping () -> Void
+        onTap: @escaping () -> Void,
+        realmService: RealmService = .shared
     ) {
         self.pageNumber = pageNumber
         self.highlightedVerse = highlightedVerse
         self._selectedVerse = selectedVerse
         self.onVerseLongPress = onVerseLongPress
         self.onTap = onTap
+        self.realmService = realmService
     }
 
     public var body: some View {
@@ -69,12 +76,13 @@ public struct PageContainer: View {
         .task {
             // Check cache first to avoid repeated Realm queries
             if pageData == nil {
-                if let cached = Self.pageCache[pageNumber] {
+                let key = CacheKey(serviceID: ObjectIdentifier(realmService), pageNumber: pageNumber)
+                if let cached = Self.pageCache[key] {
                     pageData = cached
                 } else {
-                    if let data = await RealmService.shared.fetchPageAsync(number: pageNumber) {
+                    if let data = await realmService.fetchPageAsync(number: pageNumber) {
                         pageData = data
-                        Self.pageCache[pageNumber] = data
+                        Self.pageCache[key] = data
                     }
                 }
             }

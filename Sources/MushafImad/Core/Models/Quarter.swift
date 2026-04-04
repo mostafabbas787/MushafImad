@@ -34,6 +34,10 @@ public final class Quarter: Object {
         default: return nil
         }
     }
+    
+    public required override init() {
+        super.init()
+    }
 }
 
 #if DEBUG

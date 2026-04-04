@@ -15,4 +15,8 @@ public final class QuranSection: Object {
     @objc nonisolated override public class func primaryKey() -> String? {
         return "identifier"
     }
+    
+    public required override init() {
+        super.init()
+    }
 }

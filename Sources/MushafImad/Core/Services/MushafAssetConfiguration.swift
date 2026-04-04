@@ -17,20 +17,36 @@ import AppKit
 public struct MushafAssetConfiguration {
     public var colorBundle: Bundle?
     public var imageBundle: Bundle?
+    public var fontNameProvider: ((MushafFontStyle) -> String?)?
     public var colorProvider: ((String) -> Color?)?
     public var imageProvider: ((String) -> Image?)?
     
     public init(
         colorBundle: Bundle? = nil,
         imageBundle: Bundle? = nil,
+        fontNameProvider: ((MushafFontStyle) -> String?)? = nil,
         colorProvider: ((String) -> Color?)? = nil,
         imageProvider: ((String) -> Image?)? = nil
     ) {
         self.colorBundle = colorBundle
         self.imageBundle = imageBundle
+        self.fontNameProvider = fontNameProvider
         self.colorProvider = colorProvider
         self.imageProvider = imageProvider
     }
+}
+
+public enum MushafFontStyle: Sendable {
+    case chapterNames
+    case uthmanicHafs
+    case uthmanicTN1
+    case uthmanicTN1Bold
+    case hafsSmart
+    case quranNumbers
+    case quranTitles
+    case kitab
+    case kitabBold
+    case alQuranAlKareem
 }
 
 /// Runtime helpers that resolve colors and images, honoring any overrides supplied by the host app.
@@ -69,6 +85,10 @@ public enum MushafAssets {
         
         return Image(name, bundle: .mushafResources)
     }
+    
+    public static func fontName(for style: MushafFontStyle, default defaultName: String) -> String {
+        configuration.fontNameProvider?(style) ?? defaultName
+    }
 }
 
 private extension Bundle {
@@ -104,5 +124,4 @@ private extension Bundle {
         #endif
     }
 }
-
 

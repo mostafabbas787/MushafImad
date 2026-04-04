@@ -26,6 +26,10 @@ public final class Page: Object {
     @objc nonisolated override public class func indexedProperties() -> [String] {
         return ["number"]
     }
+    
+    public required override init() {
+        super.init()
+    }
 }
 
 #if DEBUG

@@ -40,8 +40,9 @@ extension MushafView {
         private var hasLoadedData = false
         
         // Services
-        private let realmService = RealmService.shared
-        private let dataCache = QuranDataCacheService.shared
+        private let realmService: RealmService
+        private let dataCache: QuranDataCacheService
+        private let chaptersDataCache: ChaptersDataCache
         
         public var showReadingSetting:Bool = false
         public var showReadingSettingsSheet:Bool = false
@@ -69,7 +70,14 @@ extension MushafView {
         }
         // MARK: - Initialization
         
-        public init() {
+        public init(
+            realmService: RealmService = .shared,
+            dataCache: QuranDataCacheService = .shared,
+            chaptersDataCache: ChaptersDataCache = .shared
+        ) {
+            self.realmService = realmService
+            self.dataCache = dataCache
+            self.chaptersDataCache = chaptersDataCache
             // Initialize with page 1
         }
         
@@ -86,7 +94,7 @@ extension MushafView {
             }
             
             do {
-                let cache = ChaptersDataCache.shared
+                let cache = chaptersDataCache
                 if !cache.isCached {
                     try await cache.loadAndCache()
                 }

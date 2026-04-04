@@ -32,10 +32,14 @@ public final class TafseerEntry: Object, Identifiable {
     // MARK: - Identifiable
 
     public var id: String { identifier }
+    
+    public required override init() {
+        super.init()
+    }
 
     // MARK: - Convenience init
 
-    convenience init(
+    public convenience init(
         surahId: Int,
         ayahId: Int,
         globalAyahNumber: Int,

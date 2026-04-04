@@ -70,13 +70,15 @@ public struct MushafView: View {
     public let initialPage: Int?
     private let staticHighlightedVerse: Verse?
     private let highlightedVerseBinding: Binding<Verse?>?
+    private let externalPageBinding: Binding<Int>?
     private let externalLongPressHandler: ((Verse) -> Void)?
     private let externalPageTapHandler: (() -> Void)?
 
-    @State private var viewModel = ViewModel()
-    @StateObject private var playerViewModel = QuranPlayerViewModel()
-    @StateObject private var eyeTrackingCoordinator = EyeTrackingCoordinator()
-    @EnvironmentObject private var reciterService: ReciterService
+    private let realmService: RealmService
+    @State private var viewModel: ViewModel
+    @StateObject private var playerViewModel: QuranPlayerViewModel
+    @StateObject private var eyeTrackingCoordinator: EyeTrackingCoordinator
+    @StateObject private var reciterService: ReciterService
     @EnvironmentObject private var toastManager: ToastManager
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -93,28 +95,87 @@ public struct MushafView: View {
     @State private var showEyeTrackingSettings: Bool = false
 
 
-    public init(initialPage: Int? = nil,
-                highlightedVerse: Verse? = nil,
-                onVerseLongPress: ((Verse) -> Void)? = nil,
-                onPageTap: (() -> Void)? = nil
+    public init(
+        initialPage: Int? = nil,
+        highlightedVerse: Verse? = nil,
+        onVerseLongPress: ((Verse) -> Void)? = nil,
+        onPageTap: (() -> Void)? = nil,
+        realmService: RealmService = .shared,
+        reciterService: ReciterService = .shared
     ) {
         self.initialPage = initialPage
         self.staticHighlightedVerse = highlightedVerse
         self.highlightedVerseBinding = nil
+        self.externalPageBinding = nil
         self.externalLongPressHandler = onVerseLongPress
         self.externalPageTapHandler = onPageTap
+        self.realmService = realmService
+        let dependencies = Self.makeDependencies(realmService: realmService)
+        _viewModel = State(initialValue: dependencies.viewModel)
+        _playerViewModel = StateObject(wrappedValue: dependencies.playerViewModel)
+        _eyeTrackingCoordinator = StateObject(wrappedValue: dependencies.eyeTrackingCoordinator)
+        _reciterService = StateObject(wrappedValue: reciterService)
     }
 
-    public init(initialPage: Int? = nil,
-                highlightedVerse: Binding<Verse?>,
-                onVerseLongPress: ((Verse) -> Void)? = nil,
-                onPageTap: (() -> Void)? = nil
+    public init(
+        initialPage: Int? = nil,
+        highlightedVerse: Binding<Verse?>,
+        onVerseLongPress: ((Verse) -> Void)? = nil,
+        onPageTap: (() -> Void)? = nil,
+        realmService: RealmService = .shared,
+        reciterService: ReciterService = .shared
     ) {
         self.initialPage = initialPage
         self.highlightedVerseBinding = highlightedVerse
         self.staticHighlightedVerse = nil
+        self.externalPageBinding = nil
         self.externalLongPressHandler = onVerseLongPress
         self.externalPageTapHandler = onPageTap
+        self.realmService = realmService
+        let dependencies = Self.makeDependencies(realmService: realmService)
+        _viewModel = State(initialValue: dependencies.viewModel)
+        _playerViewModel = StateObject(wrappedValue: dependencies.playerViewModel)
+        _eyeTrackingCoordinator = StateObject(wrappedValue: dependencies.eyeTrackingCoordinator)
+        _reciterService = StateObject(wrappedValue: reciterService)
+    }
+    
+    public init(
+        page: Binding<Int>,
+        highlightedVerse: Binding<Verse?>,
+        onVerseLongPress: ((Verse) -> Void)? = nil,
+        onPageTap: (() -> Void)? = nil,
+        realmService: RealmService = .shared,
+        reciterService: ReciterService = .shared
+    ) {
+        self.initialPage = page.wrappedValue
+        self.highlightedVerseBinding = highlightedVerse
+        self.staticHighlightedVerse = nil
+        self.externalPageBinding = page
+        self.externalLongPressHandler = onVerseLongPress
+        self.externalPageTapHandler = onPageTap
+        self.realmService = realmService
+        let dependencies = Self.makeDependencies(realmService: realmService)
+        _viewModel = State(initialValue: dependencies.viewModel)
+        _playerViewModel = StateObject(wrappedValue: dependencies.playerViewModel)
+        _eyeTrackingCoordinator = StateObject(wrappedValue: dependencies.eyeTrackingCoordinator)
+        _reciterService = StateObject(wrappedValue: reciterService)
+    }
+    
+    public init(
+        page: Binding<Int>,
+        onVerseLongPress: ((Verse) -> Void)? = nil,
+        onPageTap: (() -> Void)? = nil,
+        realmService: RealmService = .shared,
+        reciterService: ReciterService = .shared
+    ) {
+        self.init(
+            page: page,
+            highlightedVerse: .constant(nil),
+            onVerseLongPress: onVerseLongPress,
+            onPageTap: onPageTap,
+            realmService: realmService,
+            reciterService: reciterService
+        )
     }
 
     public var body: some View {
@@ -159,23 +220,27 @@ public struct MushafView: View {
         }
         .onChange(of: viewModel.scrollPosition) { oldPage, newPage in
             guard let newPage = newPage else { return }
+            if externalPageBinding?.wrappedValue != newPage {
+                externalPageBinding?.wrappedValue = newPage
+            }
             Task {
                 await viewModel.handlePageChange(from: oldPage, to: newPage)
             }
         }
+        .conditionalExternalBindingSync(externalPageBinding: externalPageBinding, viewModel: $viewModel)
         .task {
             await viewModel.initializePageView(initialPage: initialPage)
         }
         .onAppear {
             if displayMode == .text {
                 let page = viewModel.scrollPosition ?? initialPage ?? 1
-                textModeInitialChapter = RealmService.shared.getChapterForPage(page)?.number ?? 1
+                textModeInitialChapter = realmService.getChapterForPage(page)?.number ?? 1
             }
         }
         .onChange(of: displayMode) { _, newMode in
             if newMode == .text {
                 let page = viewModel.scrollPosition ?? initialPage ?? 1
-                textModeInitialChapter = RealmService.shared.getChapterForPage(page)?.number ?? 1
+                textModeInitialChapter = realmService.getChapterForPage(page)?.number ?? 1
                 eyeTrackingCoordinator.deactivate(context: modelContext)
                 pageContentFrame = .zero
             }
@@ -242,6 +307,7 @@ public struct MushafView: View {
                 eyeTrackingCoordinator.resume()
             }
         }
+        .environmentObject(reciterService)
     }
     // MARK: - Verse Action Bar
 
@@ -339,7 +405,8 @@ public struct MushafView: View {
                             highlightedVerseBinding?.wrappedValue = verse
                         }
                     },
-                    fontSize: textFontSize
+                    fontSize: textFontSize,
+                    realmService: realmService
                 )
 #if canImport(UIKit)
                 .background(
@@ -438,7 +505,8 @@ public struct MushafView: View {
                 if let action = externalPageTapHandler {
                     action()
                 }
-            }
+            },
+            realmService: realmService
         )
         .background(
             GeometryReader { geo in
@@ -479,7 +547,7 @@ public struct MushafView: View {
     }
 
     private func activateTracking(for pageNumber: Int, frame: CGRect) {
-        let verses = RealmService.shared.getVersesForPage(pageNumber)
+        let verses = realmService.getVersesForPage(pageNumber)
         eyeTrackingCoordinator.activate(
             pageNumber: pageNumber,
             verses: verses,
@@ -492,6 +560,47 @@ public struct MushafView: View {
                 }
             }
         )
+    }
+    
+    private static func makeDependencies(realmService: RealmService) -> (
+        viewModel: ViewModel,
+        playerViewModel: QuranPlayerViewModel,
+        eyeTrackingCoordinator: EyeTrackingCoordinator
+    ) {
+        let dataCache = QuranDataCacheService(realmService: realmService)
+        let chaptersCache = ChaptersDataCache(realmService: realmService)
+        return (
+            ViewModel(realmService: realmService, dataCache: dataCache, chaptersDataCache: chaptersCache),
+            QuranPlayerViewModel(),
+            EyeTrackingCoordinator()
+        )
+    }
+    
+}
+
+private struct ExternalPageBindingSyncModifier: ViewModifier {
+    let externalPageBinding: Binding<Int>
+    @Binding var viewModel: MushafView.ViewModel
+    
+    func body(content: Content) -> some View {
+        content.onChange(of: externalPageBinding.wrappedValue) { _, newPage in
+            guard viewModel.scrollPosition != newPage else { return }
+            viewModel.scrollPosition = newPage
+        }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func conditionalExternalBindingSync(
+        externalPageBinding: Binding<Int>?,
+        viewModel: Binding<MushafView.ViewModel>
+    ) -> some View {
+        if let externalPageBinding {
+            self.modifier(ExternalPageBindingSyncModifier(externalPageBinding: externalPageBinding, viewModel: viewModel))
+        } else {
+            self
+        }
     }
 }
 

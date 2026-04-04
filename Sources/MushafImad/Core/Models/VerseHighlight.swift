@@ -12,4 +12,8 @@ public final class VerseHighlight: Object {
     @Persisted public var line: Int = 0
     @Persisted public var left: Float = 0
     @Persisted public var right: Float = 0
+    
+    public required override init() {
+        super.init()
+    }
 }

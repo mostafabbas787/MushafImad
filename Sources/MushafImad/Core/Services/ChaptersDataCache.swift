@@ -27,8 +27,7 @@ public final class ChaptersDataCache {
     public private(set) var isHizbCached = false
     public private(set) var isTypeCached = false
     
-    // Default private initializer uses the shared RealmService
-    private init(realmService: RealmServiceProtocol) {
+    public init(realmService: RealmServiceProtocol = RealmService.shared) {
         self.realmService = realmService
     }
 

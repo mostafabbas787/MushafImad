@@ -17,6 +17,23 @@ public struct MushafTextView: View {
     @Binding var selectedVerse: Verse?
     let onVerseLongPress: ((Verse) -> Void)?
     let fontSize: Double
+    let realmService: RealmService
+
+    public init(
+        initialChapter: Int,
+        highlightedVerse: Verse?,
+        selectedVerse: Binding<Verse?>,
+        onVerseLongPress: ((Verse) -> Void)?,
+        fontSize: Double,
+        realmService: RealmService = .shared
+    ) {
+        self.initialChapter = initialChapter
+        self.highlightedVerse = highlightedVerse
+        self._selectedVerse = selectedVerse
+        self.onVerseLongPress = onVerseLongPress
+        self.fontSize = fontSize
+        self.realmService = realmService
+    }
 
     @State private var didPerformInitialScroll = false
 
@@ -31,6 +48,7 @@ public struct MushafTextView: View {
                             highlightedVerse: highlightedVerse,
                             onVerseLongPress: onVerseLongPress,
                             fontSize: fontSize,
+                            realmService: realmService,
                             // Only pass the scroll callback for the target chapter;
                             // nil for all others so the section calls it unconditionally.
                             onInitialChapterAppear: number == initialChapter ? {
@@ -61,6 +79,7 @@ private struct ChapterTextSection: View {
     let highlightedVerse: Verse?
     let onVerseLongPress: ((Verse) -> Void)?
     let fontSize: Double
+    let realmService: RealmService
     /// Non-nil only for the initial chapter; called in .onAppear to trigger the
     /// one-time scroll-to-position without needing a separate isInitialChapter flag.
     let onInitialChapterAppear: (() -> Void)?
@@ -134,7 +153,7 @@ private struct ChapterTextSection: View {
             onInitialChapterAppear?()
         }
         .task {
-            chapter = RealmService.shared.getChapter(number: chapterNumber)
+            chapter = realmService.getChapter(number: chapterNumber)
         }
     }
 

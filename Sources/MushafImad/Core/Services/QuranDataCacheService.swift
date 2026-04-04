@@ -34,9 +34,10 @@ public final class QuranDataCacheService {
     /// Bounded Cache for chapter verses indexed by chapter number
     private var cachedChapterVerses: LRUCache<Int, NSArray>
     
-    private let realmService = RealmService.shared
+    private let realmService: RealmService
     
-    public init() {
+    public init(realmService: RealmService = RealmService.shared) {
+        self.realmService = realmService
         // Initialize bounded caches with configured limits
         // Memory limits: verses=20MB, headers=5MB, chapters=25MB
         cachedVerses = LRUCache(name: "verses", countLimit: Self.maxCachedVerses)
