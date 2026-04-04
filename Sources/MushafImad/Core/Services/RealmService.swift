@@ -35,11 +35,9 @@ public final class RealmService: RealmServiceProtocol {
     private var realm: Realm?
     private var realmConfiguration: Realm.Configuration?
     private let sourceConfiguration: Configuration
-    private let inMemoryIdentifier: String
     
     public init(configuration: Configuration = .bundled) {
         self.sourceConfiguration = configuration
-        self.inMemoryIdentifier = "MushafImad.inMemory.\(UUID().uuidString)"
     }
     
     // MARK: - Initialization (Widget)
@@ -463,7 +461,7 @@ public final class RealmService: RealmServiceProtocol {
             
         case .inMemory:
             return Realm.Configuration(
-                inMemoryIdentifier: inMemoryIdentifier,
+                inMemoryIdentifier: "MushafImad.inMemory",
                 schemaVersion: 24,
                 migrationBlock: migrationBlock
             )

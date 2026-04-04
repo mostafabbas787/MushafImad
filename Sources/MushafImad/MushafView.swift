@@ -110,11 +110,10 @@ public struct MushafView: View {
         self.externalLongPressHandler = onVerseLongPress
         self.externalPageTapHandler = onPageTap
         self.realmService = realmService
-        let dataCache = QuranDataCacheService(realmService: realmService)
-        let chaptersCache = ChaptersDataCache(realmService: realmService)
-        _viewModel = State(initialValue: ViewModel(realmService: realmService, dataCache: dataCache, chaptersDataCache: chaptersCache))
-        _playerViewModel = StateObject(wrappedValue: QuranPlayerViewModel())
-        _eyeTrackingCoordinator = StateObject(wrappedValue: EyeTrackingCoordinator())
+        let dependencies = Self.makeDependencies(realmService: realmService)
+        _viewModel = State(initialValue: dependencies.viewModel)
+        _playerViewModel = StateObject(wrappedValue: dependencies.playerViewModel)
+        _eyeTrackingCoordinator = StateObject(wrappedValue: dependencies.eyeTrackingCoordinator)
         _reciterService = StateObject(wrappedValue: reciterService)
     }
 
@@ -133,11 +132,10 @@ public struct MushafView: View {
         self.externalLongPressHandler = onVerseLongPress
         self.externalPageTapHandler = onPageTap
         self.realmService = realmService
-        let dataCache = QuranDataCacheService(realmService: realmService)
-        let chaptersCache = ChaptersDataCache(realmService: realmService)
-        _viewModel = State(initialValue: ViewModel(realmService: realmService, dataCache: dataCache, chaptersDataCache: chaptersCache))
-        _playerViewModel = StateObject(wrappedValue: QuranPlayerViewModel())
-        _eyeTrackingCoordinator = StateObject(wrappedValue: EyeTrackingCoordinator())
+        let dependencies = Self.makeDependencies(realmService: realmService)
+        _viewModel = State(initialValue: dependencies.viewModel)
+        _playerViewModel = StateObject(wrappedValue: dependencies.playerViewModel)
+        _eyeTrackingCoordinator = StateObject(wrappedValue: dependencies.eyeTrackingCoordinator)
         _reciterService = StateObject(wrappedValue: reciterService)
     }
     
@@ -156,11 +154,10 @@ public struct MushafView: View {
         self.externalLongPressHandler = onVerseLongPress
         self.externalPageTapHandler = onPageTap
         self.realmService = realmService
-        let dataCache = QuranDataCacheService(realmService: realmService)
-        let chaptersCache = ChaptersDataCache(realmService: realmService)
-        _viewModel = State(initialValue: ViewModel(realmService: realmService, dataCache: dataCache, chaptersDataCache: chaptersCache))
-        _playerViewModel = StateObject(wrappedValue: QuranPlayerViewModel())
-        _eyeTrackingCoordinator = StateObject(wrappedValue: EyeTrackingCoordinator())
+        let dependencies = Self.makeDependencies(realmService: realmService)
+        _viewModel = State(initialValue: dependencies.viewModel)
+        _playerViewModel = StateObject(wrappedValue: dependencies.playerViewModel)
+        _eyeTrackingCoordinator = StateObject(wrappedValue: dependencies.eyeTrackingCoordinator)
         _reciterService = StateObject(wrappedValue: reciterService)
     }
     
@@ -229,10 +226,7 @@ public struct MushafView: View {
             }
         }
         .onChange(of: externalPageBinding?.wrappedValue) { _, newPage in
-            guard let newPage else { return }
-            if viewModel.scrollPosition != newPage {
-                viewModel.scrollPosition = newPage
-            }
+            syncExternalPageChange(newPage)
         }
         .task {
             await viewModel.initializePageView(initialPage: initialPage)
@@ -566,6 +560,27 @@ public struct MushafView: View {
                 }
             }
         )
+    }
+    
+    private static func makeDependencies(realmService: RealmService) -> (
+        viewModel: ViewModel,
+        playerViewModel: QuranPlayerViewModel,
+        eyeTrackingCoordinator: EyeTrackingCoordinator
+    ) {
+        let dataCache = QuranDataCacheService(realmService: realmService)
+        let chaptersCache = ChaptersDataCache(realmService: realmService)
+        return (
+            ViewModel(realmService: realmService, dataCache: dataCache, chaptersDataCache: chaptersCache),
+            QuranPlayerViewModel(),
+            EyeTrackingCoordinator()
+        )
+    }
+    
+    private func syncExternalPageChange(_ newPage: Int?) {
+        guard externalPageBinding != nil, let newPage else { return }
+        if viewModel.scrollPosition != newPage {
+            viewModel.scrollPosition = newPage
+        }
     }
 }
 
