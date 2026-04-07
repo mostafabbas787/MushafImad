@@ -169,7 +169,7 @@ If your app already has a `ModelContainer`, simply add `ReadingSession.self` to 
 4. **Optional configuration**
    - Use `AppStorage` keys (`reading_theme`, `scrolling_mode`, `selectedReciterId`) to persist user preferences.
    - Add `ToastOverlayView()` at the root of your layout so toasts can appear above the UI.
-   - Customize colors via assets or override `ReadingTheme` cases if you add more themes.
+   - Customize reading appearance with `ReadingThemeConfiguration` when creating `MushafView`.
    - React to user interaction with `onVerseLongPress` and `onPageTap` to drive surrounding UI, such as showing toolbars or presenting sheets.
 
 ```swift
@@ -187,6 +187,17 @@ struct ReaderContainer: View {
         .toolbarVisibility(isChromeVisible ? .visible : .hidden, for: .navigationBar)
     }
 }
+```
+
+```swift
+let customReadingTheme = ReadingThemeConfiguration(
+    comfortable: .init(background: Color(hex: "#F5EFD8"), text: .black),
+    calm: .init(background: Color(hex: "#E6F3EE"), text: .black),
+    night: .init(background: Color(hex: "#1D2220"), text: .white),
+    white: .init(background: .white, text: .black)
+)
+
+MushafView(initialPage: 1, readingThemeConfiguration: customReadingTheme)
 ```
 
 ### Advanced: Custom Page Layouts
@@ -320,7 +331,7 @@ import AppKit
 - **Caching** – `QuranDataCacheService` and `ChaptersDataCache` are singletons; clear caches with their `clearCache()` helpers during debugging.
 - **Fonts** – All fonts live under `Sources/Resources/Res/fonts`. Update `FontRegistrar.fontFileNames` when adding or removing font assets.
 - **Resources** – Additional surah timing JSON or page imagery must be added to `Resources/Res` and declared via `.process` in `Package.swift`.
-- **Theming** – Reading theme colors live in `Media.xcassets/Colors`. App-specific palettes can override or extend them.
+- **Theming** – Reading colors are controlled by `ReadingThemeConfiguration` (per `MushafView` instance). You can still override shared design colors from `Media.xcassets/Colors` via `MushafAssets`.
 - **Platform testing** – Use `swift build` to verify compilation on macOS. The package automatically adapts UI components based on the target platform.
 
 ## Testing & Verification

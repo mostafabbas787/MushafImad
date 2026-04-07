@@ -8,40 +8,6 @@
 import SwiftUI
 import SwiftData
 
-/// User-selectable background palettes that match the reading mood.
-public enum ReadingTheme: String, CaseIterable {
-    case comfortable
-    case calm
-    case night
-    case white
-
-    public var color: Color {
-        switch self {
-        case .comfortable:
-            return Color(hex: "#E4EFD9")
-        case .calm:
-            return Color(hex: "#E0F1EA")
-        case .night:
-            return Color(hex: "#2F352F")
-        case .white:
-            return Color(hex: "#FFFFFF")
-        }
-    }
-
-    public var title: String {
-        switch self {
-        case .comfortable:
-            String(localized: "Comfy")
-        case .calm:
-            String(localized: "Calm")
-        case .night:
-            String(localized: "Night")
-        case .white:
-            String(localized: "White")
-        }
-    }
-}
-
 /// Controls whether the reader shows image-based pages or text-based verses.
 public enum DisplayMode: String, CaseIterable {
     case image
@@ -72,6 +38,7 @@ public struct MushafView: View {
     private let highlightedVerseBinding: Binding<Verse?>?
     private let externalLongPressHandler: ((Verse) -> Void)?
     private let externalPageTapHandler: (() -> Void)?
+    private let readingThemeConfiguration: ReadingThemeConfiguration
 
     @State private var viewModel = ViewModel()
     @StateObject private var playerViewModel = QuranPlayerViewModel()
@@ -96,35 +63,43 @@ public struct MushafView: View {
     public init(initialPage: Int? = nil,
                 highlightedVerse: Verse? = nil,
                 onVerseLongPress: ((Verse) -> Void)? = nil,
-                onPageTap: (() -> Void)? = nil
+                onPageTap: (() -> Void)? = nil,
+                readingThemeConfiguration: ReadingThemeConfiguration = .default
     ) {
         self.initialPage = initialPage
         self.staticHighlightedVerse = highlightedVerse
         self.highlightedVerseBinding = nil
         self.externalLongPressHandler = onVerseLongPress
         self.externalPageTapHandler = onPageTap
+        self.readingThemeConfiguration = readingThemeConfiguration
     }
 
     public init(initialPage: Int? = nil,
                 highlightedVerse: Binding<Verse?>,
                 onVerseLongPress: ((Verse) -> Void)? = nil,
-                onPageTap: (() -> Void)? = nil
+                onPageTap: (() -> Void)? = nil,
+                readingThemeConfiguration: ReadingThemeConfiguration = .default
     ) {
         self.initialPage = initialPage
         self.highlightedVerseBinding = highlightedVerse
         self.staticHighlightedVerse = nil
         self.externalLongPressHandler = onVerseLongPress
         self.externalPageTapHandler = onPageTap
+        self.readingThemeConfiguration = readingThemeConfiguration
+    }
+
+    private var activeThemeColors: ReadingThemeColors {
+        readingThemeConfiguration.colors(for: readingTheme)
     }
 
     public var body: some View {
         ZStack {
-            readingTheme.color.ignoresSafeArea()
+            activeThemeColors.background.ignoresSafeArea()
             if viewModel.isLoading || !viewModel.isInitialPageReady {
                 LoadingView(message: viewModel.isLoading ? String(localized: "Loading Quran data...") : String(localized: "Preparing page..."))
             } else {
                 pageView
-                    .foregroundStyle(.naturalBlack)
+                    .foregroundStyle(activeThemeColors.text)
             }
             
             // Eye tracking overlay (experimental)
@@ -137,7 +112,6 @@ public struct MushafView: View {
                 )
             }
         }
-        .environment(\.colorScheme, readingTheme == .night ? .dark : .light)
         .opacity(viewModel.contentOpacity)
         .overlay(alignment: .bottom) {
             if let verse = viewModel.selectedVerse, externalLongPressHandler == nil {
